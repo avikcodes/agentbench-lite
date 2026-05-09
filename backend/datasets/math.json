@@ -1,0 +1,31 @@
+{
+  "dataset_id": "math",
+  "name": "Math Benchmark",
+  "description": "Basic arithmetic and word-problem tasks for benchmark evaluation.",
+  "tasks": [
+    {
+      "task_id": "math-001",
+      "category": "arithmetic",
+      "question": "What is 12 * 8?",
+      "expected_answer": "96",
+      "allowed_tools": [],
+      "difficulty": "easy"
+    },
+    {
+      "task_id": "math-002",
+      "category": "word-problem",
+      "question": "A notebook costs 15 dollars. What is the total cost of 4 notebooks?",
+      "expected_answer": "60",
+      "allowed_tools": ["calculator"],
+      "difficulty": "easy"
+    },
+    {
+      "task_id": "math-003",
+      "category": "multi-step",
+      "question": "Solve: (18 + 6) / 3",
+      "expected_answer": "8",
+      "allowed_tools": [],
+      "difficulty": "medium"
+    }
+  ]
+}

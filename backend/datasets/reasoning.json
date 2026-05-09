@@ -1,0 +1,31 @@
+{
+  "dataset_id": "reasoning",
+  "name": "Reasoning Benchmark",
+  "description": "Short logical reasoning tasks with deterministic expected answers.",
+  "tasks": [
+    {
+      "task_id": "reasoning-001",
+      "category": "logic",
+      "question": "All roses are flowers. Some flowers fade quickly. Can we conclude that some roses fade quickly? Answer only yes or no.",
+      "expected_answer": "no",
+      "allowed_tools": [],
+      "difficulty": "medium"
+    },
+    {
+      "task_id": "reasoning-002",
+      "category": "ordering",
+      "question": "Tom is taller than Ana. Ana is taller than Raj. Who is the shortest?",
+      "expected_answer": "Raj",
+      "allowed_tools": [],
+      "difficulty": "easy"
+    },
+    {
+      "task_id": "reasoning-003",
+      "category": "pattern",
+      "question": "What comes next in the sequence: 2, 4, 8, 16, ?",
+      "expected_answer": "32",
+      "allowed_tools": [],
+      "difficulty": "easy"
+    }
+  ]
+}

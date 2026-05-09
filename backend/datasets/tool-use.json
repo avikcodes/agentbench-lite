@@ -1,0 +1,31 @@
+{
+  "dataset_id": "tool-use",
+  "name": "Tool Use Benchmark",
+  "description": "Tasks that specify which tools are permitted for solving the benchmark item.",
+  "tasks": [
+    {
+      "task_id": "tool-001",
+      "category": "search",
+      "question": "Find the capital of Japan using an allowed tool.",
+      "expected_answer": "Tokyo",
+      "allowed_tools": ["web_search"],
+      "difficulty": "easy"
+    },
+    {
+      "task_id": "tool-002",
+      "category": "calculation",
+      "question": "Calculate 245 + 378 using an allowed tool.",
+      "expected_answer": "623",
+      "allowed_tools": ["calculator"],
+      "difficulty": "easy"
+    },
+    {
+      "task_id": "tool-003",
+      "category": "lookup",
+      "question": "Use an allowed tool to identify the file extension typically used for JSON files.",
+      "expected_answer": ".json",
+      "allowed_tools": ["documentation_lookup"],
+      "difficulty": "medium"
+    }
+  ]
+}
