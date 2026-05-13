@@ -130,6 +130,7 @@ class EvaluationService:
             model_name=model_name,
             executions=executions,
             tasks=tasks,
+            dataset_id=dataset_id,
             weights=weights,
         )
 

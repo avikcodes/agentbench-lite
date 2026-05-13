@@ -2,6 +2,8 @@ import { apiGet, apiPost } from "@/services/http";
 import type {
   AgentExecutionResult,
   AnalyticsSummary,
+  BenchmarkRunRequest,
+  BenchmarkRunState,
   BenchmarkEvaluationResult,
   BenchmarkTask,
   BenchmarkTaskExecutionRequest,
@@ -23,6 +25,26 @@ export const dashboardApi = {
   getDatasets: () => apiGet<DatasetSummary[]>("/api/benchmarks/datasets"),
   getDatasetTasks: (datasetId: string) =>
     apiGet<BenchmarkTask[]>(`/api/benchmarks/datasets/${datasetId}/tasks`),
+  createBenchmarkRun: (body: BenchmarkRunRequest) =>
+    apiPost<BenchmarkRunState, BenchmarkRunRequest>("/api/benchmarks/runs", body, {
+      timeoutMs: 20000,
+    }),
+  getBenchmarkRun: (runId: string) =>
+    apiGet<BenchmarkRunState>(`/api/benchmarks/runs/${runId}`, {
+      timeoutMs: 10000,
+      retries: 2,
+    }),
+  getBenchmarkRunStatus: (runId: string) =>
+    apiGet<BenchmarkRunState>(`/api/benchmarks/runs/${runId}/status`, {
+      timeoutMs: 10000,
+      retries: 2,
+    }),
+  retryBenchmarkRun: (runId: string) =>
+    apiPost<BenchmarkRunState, Record<string, never>>(
+      `/api/benchmarks/runs/${runId}/retry`,
+      {},
+      { timeoutMs: 20000 },
+    ),
   getTools: () => apiGet<ToolMetadata[]>("/api/tools"),
   getBenchmarkResults: () =>
     apiGet<BenchmarkEvaluationResult[]>("/api/evaluations/benchmarks"),

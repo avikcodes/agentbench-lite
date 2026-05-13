@@ -7,9 +7,9 @@ from app.schemas.analytics import AnalyticsSummary, TrendAnalysis, TrendDataPoin
 from app.schemas.evaluation import (
     BenchmarkEvaluationResult,
     EvaluationComparisonResult,
-    FailureType,
 )
 from app.services.evaluation_store_service import evaluation_store_service
+from app.services.execution_store_service import execution_store_service
 
 
 class AnalyticsServiceError(Exception):
@@ -54,8 +54,13 @@ class AnalyticsService:
         for r in results:
             for f in r.failure_analysis.failures:
                 failure_counter[f.failure_type.value] += 1
-            for t in r.benchmark_summary.execution_statistics.__dict__:
-                pass
+            for execution_id in r.execution_ids:
+                try:
+                    execution = await execution_store_service.get_result(execution_id)
+                except Exception:
+                    continue
+                for tool_name in execution.tools_used:
+                    tool_counter[tool_name] += 1
 
         for r in results:
             for task in r.task_results:

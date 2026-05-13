@@ -1,38 +1,84 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+type UseApiQueryOptions<T> = {
+  enabled?: boolean;
+  pollIntervalMs?: number;
+  initialData?: T | null;
+  onSuccess?: (result: T) => void;
+};
 
 export function useApiQuery<T>(
   queryKey: string,
   fetcher: () => Promise<T>,
+  options: UseApiQueryOptions<T> = {},
 ) {
-  const [data, setData] = useState<T | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { enabled = true, pollIntervalMs, initialData = null, onSuccess } = options;
+  const [data, setData] = useState<T | null>(initialData);
+  const [isLoading, setIsLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
+  const timerRef = useRef<number | null>(null);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
 
   const refetch = useCallback(async () => {
-    setIsLoading(true);
+    if (!enabled) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading((current) => current || data === null);
     setError(null);
 
     try {
       const result = await fetcher();
       setData(result);
+      onSuccess?.(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setIsLoading(false);
     }
-  }, [fetcher]);
+  }, [data, enabled, fetcher, onSuccess]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void refetch();
-  }, [queryKey, refetch]);
+    clearTimer();
+
+    if (!enabled) {
+      return;
+    }
+
+    window.setTimeout(() => {
+      void refetch();
+    }, 0);
+
+    if (!pollIntervalMs) {
+      return;
+    }
+
+    const loop = () => {
+      timerRef.current = window.setTimeout(async () => {
+        await refetch();
+        loop();
+      }, pollIntervalMs);
+    };
+
+    loop();
+
+    return clearTimer;
+  }, [clearTimer, enabled, pollIntervalMs, queryKey, refetch]);
 
   return {
     data,
     isLoading,
     error,
     refetch,
+    setData,
   };
 }

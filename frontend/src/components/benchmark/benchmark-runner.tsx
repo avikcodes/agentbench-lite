@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Play, RefreshCcw } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { Play, RefreshCcw, RotateCcw } from "lucide-react";
 
+import { BenchmarkCompletionSummary } from "@/components/benchmark/benchmark-completion-summary";
+import { BenchmarkStatusCards } from "@/components/benchmark/benchmark-status-cards";
+import { ExecutionErrorAlert } from "@/components/benchmark/execution-error-alert";
+import { ExecutionProgressTracker } from "@/components/benchmark/execution-progress-tracker";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
@@ -12,13 +16,13 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useBenchmarkExecution } from "@/hooks/use-benchmark-execution";
 import { useApiQuery } from "@/hooks/use-api-query";
-import { formatMs, titleCase } from "@/lib/format";
+import { formatDate, formatMs, formatScore, titleCase } from "@/lib/format";
 import { dashboardApi } from "@/services/dashboard";
-import type { AgentModelConfig, BenchmarkTask, RunTaskItem } from "@/types/api";
+import type { AgentModelConfig, BenchmarkTask } from "@/types/api";
 
 const defaultConfig: AgentModelConfig = {
   provider: "groq",
@@ -30,42 +34,39 @@ const defaultConfig: AgentModelConfig = {
 };
 
 export function BenchmarkRunner() {
-  const router = useRouter();
   const models = useApiQuery("run-models", dashboardApi.getModels);
   const datasets = useApiQuery("run-datasets", dashboardApi.getDatasets);
   const tools = useApiQuery("run-tools", dashboardApi.getTools);
+  const execution = useBenchmarkExecution();
 
   const [selectedDataset, setSelectedDataset] = useState("");
   const [config, setConfig] = useState<AgentModelConfig>(defaultConfig);
   const [tasks, setTasks] = useState<BenchmarkTask[]>([]);
-  const [taskStatuses, setTaskStatuses] = useState<RunTaskItem[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [taskError, setTaskError] = useState<string | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
-  const [runError, setRunError] = useState<string | null>(null);
-  const [activeBenchmarkId, setActiveBenchmarkId] = useState<string | null>(null);
   const [taskReloadSeed, setTaskReloadSeed] = useState(0);
 
-  useEffect(() => {
-    const availableModels = models.data ?? [];
-    if (availableModels.length > 0 && !config.model_name) {
-      setConfig((current) => ({
-        ...current,
-        provider: availableModels[0].provider,
-        model_name: availableModels[0].model_name,
-      }));
+  const effectiveConfig = useMemo(() => {
+    if (config.model_name) {
+      return config;
     }
-  }, [models.data, config.model_name]);
+
+    const firstModel = models.data?.[0];
+    if (!firstModel) {
+      return config;
+    }
+
+    return {
+      ...config,
+      provider: firstModel.provider,
+      model_name: firstModel.model_name,
+    };
+  }, [config, models.data]);
+
+  const effectiveDataset = selectedDataset || datasets.data?.[0]?.dataset_id || "";
 
   useEffect(() => {
-    const availableDatasets = datasets.data ?? [];
-    if (availableDatasets.length > 0 && !selectedDataset) {
-      setSelectedDataset(availableDatasets[0].dataset_id);
-    }
-  }, [datasets.data, selectedDataset]);
-
-  useEffect(() => {
-    if (!selectedDataset) {
+    if (!effectiveDataset) {
       return;
     }
 
@@ -74,15 +75,8 @@ export function BenchmarkRunner() {
       setTaskError(null);
 
       try {
-        const nextTasks = await dashboardApi.getDatasetTasks(selectedDataset);
+        const nextTasks = await dashboardApi.getDatasetTasks(effectiveDataset);
         setTasks(nextTasks);
-        setTaskStatuses(
-          nextTasks.map((task) => ({
-            taskId: task.task_id,
-            category: task.category,
-            status: "queued",
-          })),
-        );
       } catch (error) {
         setTaskError(error instanceof Error ? error.message : "Unable to load tasks.");
       } finally {
@@ -91,97 +85,33 @@ export function BenchmarkRunner() {
     }
 
     void loadTasks();
-  }, [selectedDataset, taskReloadSeed]);
+  }, [effectiveDataset, taskReloadSeed]);
 
   const selectedModel = (models.data ?? []).find(
-    (model) => model.model_name === config.model_name && model.provider === config.provider,
+    (model) =>
+      model.model_name === effectiveConfig.model_name && model.provider === effectiveConfig.provider,
   );
 
-  const progress =
-    taskStatuses.length === 0
-      ? 0
-      : (taskStatuses.filter((task) => task.status === "success" || task.status === "error").length /
-          taskStatuses.length) *
-        100;
+  const run = execution.run;
+  const taskStates = useMemo(() => run?.task_states ?? [], [run]);
+  const failedTasks = useMemo(
+    () => taskStates.filter((task) => task.status === "failed"),
+    [taskStates],
+  );
 
-  async function runBenchmark() {
-    if (!selectedDataset || !config.model_name || tasks.length === 0) {
+  async function handleStartRun() {
+    if (!effectiveDataset || !effectiveConfig.model_name || tasks.length === 0) {
       return;
     }
 
-    setIsRunning(true);
-    setRunError(null);
-    setActiveBenchmarkId(null);
-    const executionIds: string[] = [];
+    await execution.startRun({
+      datasetId: effectiveDataset,
+      model: effectiveConfig,
+    });
+  }
 
-    setTaskStatuses((current) =>
-      current.map((task) => ({
-        ...task,
-        status: "queued",
-        executionId: undefined,
-        latency: undefined,
-        error: null,
-      })),
-    );
-
-    try {
-      for (const task of tasks) {
-        setTaskStatuses((current) =>
-          current.map((item) =>
-            item.taskId === task.task_id ? { ...item, status: "running" } : item,
-          ),
-        );
-
-        try {
-          const execution = await dashboardApi.runBenchmarkTask(selectedDataset, task.task_id, {
-            model: config,
-          });
-
-          executionIds.push(execution.execution_id);
-          setTaskStatuses((current) =>
-            current.map((item) =>
-              item.taskId === task.task_id
-                ? {
-                    ...item,
-                    status: execution.success_status ? "success" : "error",
-                    executionId: execution.execution_id,
-                    latency: execution.total_latency,
-                    error: execution.error_message,
-                  }
-                : item,
-            ),
-          );
-        } catch (error) {
-          setTaskStatuses((current) =>
-            current.map((item) =>
-              item.taskId === task.task_id
-                ? {
-                    ...item,
-                    status: "error",
-                    error: error instanceof Error ? error.message : "Execution failed.",
-                  }
-                : item,
-            ),
-          );
-        }
-      }
-
-      if (executionIds.length === 0) {
-        throw new Error("No task executions completed successfully, so the benchmark could not be evaluated.");
-      }
-
-      const result = await dashboardApi.evaluateBenchmarkRun({
-        execution_ids: executionIds,
-        model_name: `${config.provider}/${config.model_name}`,
-        dataset_id: selectedDataset,
-      });
-
-      setActiveBenchmarkId(result.benchmark_id);
-    } catch (error) {
-      setRunError(error instanceof Error ? error.message : "Unable to complete benchmark run.");
-    } finally {
-      setIsRunning(false);
-    }
+  async function handleRetryFailedTasks() {
+    await execution.retryFailedTasks();
   }
 
   if (models.isLoading || datasets.isLoading || tools.isLoading) {
@@ -208,14 +138,14 @@ export function BenchmarkRunner() {
       <PageHeader
         eyebrow="Execution Lab"
         title="Run a benchmark suite"
-        description="Choose a model, select a dataset, tune execution controls, and launch a full benchmark run with live per-task status updates."
+        description="Launch a full benchmark workflow from one form submission, then follow execution, evaluation, replay generation, and result publication live."
         actions={
           <>
             <Button variant="outline" onClick={() => void datasets.refetch()}>
               <RefreshCcw className="size-4" />
               Refresh data
             </Button>
-            <Button disabled={isRunning || !selectedModel?.enabled} onClick={() => void runBenchmark()}>
+            <Button disabled={execution.isActive || !selectedModel?.enabled} onClick={() => void handleStartRun()}>
               <Play className="size-4" />
               Run benchmark
             </Button>
@@ -227,16 +157,20 @@ export function BenchmarkRunner() {
         <Card>
           <CardHeader>
             <CardTitle>Benchmark configuration</CardTitle>
-            <CardDescription>Execution controls are sent directly to the backend benchmark task runner.</CardDescription>
+            <CardDescription>
+              The payload below is mapped directly to the backend benchmark lifecycle API.
+            </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2 text-sm">
               <span className="font-medium">Provider</span>
               <Select
-                value={config.provider}
+                value={effectiveConfig.provider}
                 onChange={(event) => {
                   const provider = event.target.value as AgentModelConfig["provider"];
-                  const firstModel = enabledModels.find((model) => model.provider === provider) ?? models.data?.find((model) => model.provider === provider);
+                  const firstModel =
+                    enabledModels.find((model) => model.provider === provider) ??
+                    models.data?.find((model) => model.provider === provider);
                   setConfig((current) => ({
                     ...current,
                     provider,
@@ -255,7 +189,7 @@ export function BenchmarkRunner() {
             <label className="space-y-2 text-sm">
               <span className="font-medium">Model</span>
               <Select
-                value={config.model_name}
+                value={effectiveConfig.model_name}
                 onChange={(event) =>
                   setConfig((current) => ({
                     ...current,
@@ -275,7 +209,7 @@ export function BenchmarkRunner() {
 
             <label className="space-y-2 text-sm">
               <span className="font-medium">Dataset</span>
-              <Select value={selectedDataset} onChange={(event) => setSelectedDataset(event.target.value)}>
+              <Select value={effectiveDataset} onChange={(event) => setSelectedDataset(event.target.value)}>
                 {(datasets.data ?? []).map((dataset) => (
                   <option key={dataset.dataset_id} value={dataset.dataset_id}>
                     {dataset.name}
@@ -350,10 +284,12 @@ export function BenchmarkRunner() {
             </label>
 
             <div className="rounded-2xl bg-secondary/70 p-4">
-              <p className="text-sm font-medium">Model availability</p>
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">{selectedModel?.description ?? "Choose a model"}</span>
-                <StatusBadge status={selectedModel?.enabled ? "healthy" : "disabled"} />
+              <p className="text-sm font-medium">Current run target</p>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <span className="text-sm text-muted-foreground">
+                  {run?.model_name ?? selectedModel?.description ?? "Choose a model"}
+                </span>
+                <StatusBadge status={run?.status ?? (selectedModel?.enabled ? "healthy" : "disabled")} />
               </div>
             </div>
           </CardContent>
@@ -423,58 +359,96 @@ export function BenchmarkRunner() {
       <Card>
         <CardHeader>
           <CardTitle>Live execution status</CardTitle>
-          <CardDescription>Task-level updates appear here as the benchmark progresses.</CardDescription>
+          <CardDescription>
+            Polling stays active while the backend processes tasks, evaluates outputs, writes traces, and stores analytics-ready benchmark results.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Progress</span>
-              <span className="font-medium">{progress.toFixed(0)}%</span>
-            </div>
-            <Progress value={progress} />
+          <ExecutionProgressTracker progress={execution.progress} run={run ?? null} />
+          <BenchmarkStatusCards run={run ?? null} />
+
+          {execution.error ? (
+            <ExecutionErrorAlert
+              message={execution.error}
+              onRetry={failedTasks.length > 0 ? () => void handleRetryFailedTasks() : undefined}
+            />
+          ) : null}
+
+          {run?.failure_message ? (
+            <ExecutionErrorAlert
+              message={run.failure_message}
+              onRetry={failedTasks.length > 0 ? () => void handleRetryFailedTasks() : undefined}
+            />
+          ) : null}
+
+          {run?.status === "completed" ? <BenchmarkCompletionSummary run={run} /> : null}
+
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <span>Run ID: {run?.run_id ?? "Not started"}</span>
+            {run?.current_task_id ? <span>Active task: {run.current_task_id}</span> : null}
+            {run?.started_at ? <span>Started: {formatDate(run.started_at)}</span> : null}
+            {run?.completed_at ? <span>Completed: {formatDate(run.completed_at)}</span> : null}
+            {failedTasks.length > 0 ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={execution.isActive}
+                onClick={() => void handleRetryFailedTasks()}
+              >
+                <RotateCcw className="size-4" />
+                Retry failed tasks
+              </Button>
+            ) : null}
           </div>
-
-          {runError ? (
-            <ErrorState message={runError} />
-          ) : null}
-
-          {activeBenchmarkId ? (
-            <div className="rounded-2xl bg-emerald-50 p-4 text-emerald-800">
-              <p className="text-sm font-semibold">Benchmark evaluation complete</p>
-              <p className="mt-1 text-sm">
-                Result stored as <span className="font-mono">{activeBenchmarkId}</span>.
-              </p>
-              <div className="mt-3">
-                <Button variant="outline" onClick={() => router.push(`/results/${activeBenchmarkId}`)}>
-                  View results
-                </Button>
-              </div>
-            </div>
-          ) : null}
 
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Task</TableHead>
-                  <TableHead>Category</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Execution</TableHead>
+                  <TableHead>Score</TableHead>
                   <TableHead>Latency</TableHead>
+                  <TableHead>Replay</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {taskStatuses.map((task) => (
-                  <TableRow key={task.taskId}>
-                    <TableCell className="font-medium">{task.taskId}</TableCell>
-                    <TableCell>{titleCase(task.category)}</TableCell>
+                {(taskStates.length > 0
+                  ? taskStates
+                  : tasks.map((task) => ({
+                      task_id: task.task_id,
+                      status: "queued",
+                      execution_id: null,
+                      score: null,
+                      latency: null,
+                      replay_url: null,
+                      error_message: null,
+                    }))).map((task) => (
+                  <TableRow key={task.task_id}>
+                    <TableCell className="font-medium">
+                      <div>{task.task_id}</div>
+                      {"category" in task && task.category ? (
+                        <div className="text-xs text-muted-foreground">{titleCase(task.category)}</div>
+                      ) : null}
+                    </TableCell>
                     <TableCell>
                       <StatusBadge status={task.status} />
                     </TableCell>
                     <TableCell className="font-mono text-xs">
-                      {task.executionId ?? task.error ?? "Pending"}
+                      {task.execution_id ?? task.error_message ?? "Pending"}
                     </TableCell>
-                    <TableCell>{task.latency ? formatMs(task.latency) : "--"}</TableCell>
+                    <TableCell>{task.score !== null ? formatScore(task.score) : "--"}</TableCell>
+                    <TableCell>{task.latency !== null ? formatMs(task.latency) : "--"}</TableCell>
+                    <TableCell>
+                      {task.replay_url ? (
+                        <Link className="text-primary hover:underline" href={task.replay_url}>
+                          Open replay
+                        </Link>
+                      ) : (
+                        "--"
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

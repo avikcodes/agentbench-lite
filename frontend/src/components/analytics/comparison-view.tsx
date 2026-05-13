@@ -6,13 +6,13 @@ import { BarChart3, Plus, X } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { HorizontalBarChart } from "@/components/shared/charts";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useApiQuery } from "@/hooks/use-api-query";
-import { formatDate, formatPercent, formatScore } from "@/lib/format";
+import { useBenchmarkRefresh } from "@/hooks/use-benchmark-refresh";
+import { formatPercent, formatScore } from "@/lib/format";
 import { dashboardApi } from "@/services/dashboard";
 
 export function ComparisonView() {
@@ -20,6 +20,7 @@ export function ComparisonView() {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [newId, setNewId] = useState("");
+  const comparisonKey = useMemo(() => selectedIds.slice().sort().join(","), [selectedIds]);
 
   const availableResults = useMemo(() => {
     if (!allResults.data) return [];
@@ -38,12 +39,18 @@ export function ComparisonView() {
   };
 
   const comparisonResult = useApiQuery(
-    `compare-${selectedIds.sort().join(",")}`,
+    `compare-${comparisonKey}`,
     () => {
       if (selectedIds.length < 2) return Promise.resolve(null);
       return dashboardApi.compareBenchmarks({ benchmark_ids: selectedIds });
     },
   );
+  useBenchmarkRefresh(() => {
+    void allResults.refetch();
+    if (selectedIds.length >= 2) {
+      void comparisonResult.refetch();
+    }
+  });
 
   if (allResults.isLoading) {
     return (

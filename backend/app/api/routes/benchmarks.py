@@ -1,6 +1,11 @@
 from fastapi import APIRouter, HTTPException, status
 
 from app.schemas.benchmark import BenchmarkTask, DatasetSummary
+from app.schemas.execution import BenchmarkRunRequest, BenchmarkRunState
+from app.services.benchmark_run_service import (
+    BenchmarkRunNotFoundError,
+    benchmark_run_service,
+)
 from app.services.dataset_service import (
     DatasetNotFoundError,
     DatasetServiceError,
@@ -64,5 +69,58 @@ async def get_dataset_task(dataset_id: str, task_id: str) -> BenchmarkTask:
     except DatasetValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post("/runs", response_model=BenchmarkRunState, status_code=status.HTTP_202_ACCEPTED)
+async def create_benchmark_run(request: BenchmarkRunRequest) -> BenchmarkRunState:
+    try:
+        return await benchmark_run_service.create_run(request)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except DatasetValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get("/runs/{run_id}", response_model=BenchmarkRunState)
+async def get_benchmark_run(run_id: str) -> BenchmarkRunState:
+    try:
+        return await benchmark_run_service.get_run(run_id)
+    except BenchmarkRunNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get("/runs/{run_id}/status", response_model=BenchmarkRunState)
+async def get_benchmark_run_status(run_id: str) -> BenchmarkRunState:
+    return await get_benchmark_run(run_id)
+
+
+@router.post("/runs/{run_id}/retry", response_model=BenchmarkRunState, status_code=status.HTTP_202_ACCEPTED)
+async def retry_benchmark_run(run_id: str) -> BenchmarkRunState:
+    try:
+        return await benchmark_run_service.retry_failed_tasks(run_id)
+    except BenchmarkRunNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except DatasetNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc

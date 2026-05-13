@@ -9,6 +9,7 @@ from app.schemas.llm import ModelProviderName
 
 
 AgentActionType = Literal["tool", "final"]
+BenchmarkRunStatus = Literal["queued", "running", "evaluating", "completed", "failed"]
 
 
 class AgentModelConfig(BaseModel):
@@ -33,6 +34,11 @@ class CustomTaskExecutionRequest(BaseModel):
 
 
 class BenchmarkTaskExecutionRequest(BaseModel):
+    model: AgentModelConfig
+
+
+class BenchmarkRunRequest(BaseModel):
+    dataset_id: str = Field(..., min_length=1)
     model: AgentModelConfig
 
 
@@ -81,3 +87,48 @@ class ExecutionTraceResponse(BaseModel):
     execution_id: str = Field(..., min_length=1)
     task_id: str = Field(..., min_length=1)
     execution_trace: list[ExecutionTraceStep] = Field(default_factory=list)
+
+
+class BenchmarkRunTaskState(BaseModel):
+    task_id: str = Field(..., min_length=1)
+    category: str = Field(..., min_length=1)
+    difficulty: str = Field(..., min_length=1)
+    status: BenchmarkRunStatus = "queued"
+    execution_id: str | None = None
+    replay_url: str | None = None
+    latency: float | None = Field(default=None, ge=0)
+    passed: bool | None = None
+    score: float | None = Field(default=None, ge=0, le=1)
+    error_message: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    evaluated_at: datetime | None = None
+
+
+class BenchmarkRunSummary(BaseModel):
+    total_tasks: int = Field(default=0, ge=0)
+    queued_tasks: int = Field(default=0, ge=0)
+    running_tasks: int = Field(default=0, ge=0)
+    evaluating_tasks: int = Field(default=0, ge=0)
+    completed_tasks: int = Field(default=0, ge=0)
+    failed_tasks: int = Field(default=0, ge=0)
+    completion_rate: float = Field(default=0.0, ge=0, le=1)
+
+
+class BenchmarkRunState(BaseModel):
+    run_id: str = Field(..., min_length=1)
+    dataset_id: str = Field(..., min_length=1)
+    dataset_name: str = Field(..., min_length=1)
+    model_name: str = Field(..., min_length=1)
+    run_config: AgentModelConfig
+    status: BenchmarkRunStatus = "queued"
+    created_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    current_task_id: str | None = None
+    benchmark_id: str | None = None
+    execution_ids: list[str] = Field(default_factory=list)
+    failure_message: str | None = None
+    summary: BenchmarkRunSummary = Field(default_factory=BenchmarkRunSummary)
+    task_states: list[BenchmarkRunTaskState] = Field(default_factory=list)
+    benchmark_result: dict[str, Any] | None = None

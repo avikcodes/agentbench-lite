@@ -2,25 +2,22 @@
 
 import { TrendingUp } from "lucide-react";
 
+import { TrendLineChart } from "@/components/shared/charts";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
-import { TrendLineChart } from "@/components/shared/charts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select } from "@/components/ui/select";
 import { useApiQuery } from "@/hooks/use-api-query";
+import { useBenchmarkRefresh } from "@/hooks/use-benchmark-refresh";
 import { dashboardApi } from "@/services/dashboard";
 
 export function TrendAnalysis() {
   const allResults = useApiQuery("benchmark-results", () => dashboardApi.getBenchmarkResults());
+  const trends = useApiQuery("trends", () => dashboardApi.getTrendAnalysis());
 
-  const models = allResults.data
-    ? [...new Set(allResults.data.map((r) => r.model_name))]
-    : [];
-
-  const trends = useApiQuery(
-    "trends",
-    () => dashboardApi.getTrendAnalysis(),
-  );
+  useBenchmarkRefresh(() => {
+    void allResults.refetch();
+    void trends.refetch();
+  });
 
   if (trends.isLoading) {
     return (
@@ -68,7 +65,7 @@ export function TrendAnalysis() {
           <CardTitle>Trend Analysis</CardTitle>
         </div>
         <CardDescription>
-          Track benchmark progression over time — scores, pass rates, and latency.
+          Track benchmark progression over time for scores, pass rates, and latency.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { AccuracyChart, LatencyChart } from "@/components/shared/charts";
 import { ErrorState } from "@/components/shared/error-state";
 import { MetricCard } from "@/components/shared/metric-card";
@@ -9,11 +11,15 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useApiQuery } from "@/hooks/use-api-query";
+import { useBenchmarkRefresh } from "@/hooks/use-benchmark-refresh";
 import { formatDate, formatMs, formatPercent, formatScore, titleCase } from "@/lib/format";
 import { dashboardApi } from "@/services/dashboard";
 
 export function ResultDetail({ benchmarkId }: { benchmarkId: string }) {
   const result = useApiQuery(`result-${benchmarkId}`, () => dashboardApi.getBenchmarkResult(benchmarkId));
+  useBenchmarkRefresh(() => {
+    void result.refetch();
+  });
 
   if (result.isLoading) {
     return <PageSkeleton />;
@@ -143,24 +149,30 @@ export function ResultDetail({ benchmarkId }: { benchmarkId: string }) {
                   <TableHead>Task</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Difficulty</TableHead>
-                  <TableHead>Passed</TableHead>
-                  <TableHead>Score</TableHead>
-                  <TableHead>Primary failure</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {result.data.task_results.map((task) => (
-                  <TableRow key={task.execution_id}>
+                      <TableHead>Passed</TableHead>
+                      <TableHead>Score</TableHead>
+                      <TableHead>Primary failure</TableHead>
+                      <TableHead>Replay</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {result.data.task_results.map((task) => (
+                      <TableRow key={task.execution_id}>
                     <TableCell className="font-medium">{task.task_id}</TableCell>
                     <TableCell>{task.category ? titleCase(task.category) : "--"}</TableCell>
                     <TableCell>{task.difficulty ? titleCase(task.difficulty) : "--"}</TableCell>
-                    <TableCell>{task.passed ? "Yes" : "No"}</TableCell>
-                    <TableCell>{formatScore(task.score)}</TableCell>
-                    <TableCell>{titleCase(task.failure_analysis.primary_failure)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                        <TableCell>{task.passed ? "Yes" : "No"}</TableCell>
+                        <TableCell>{formatScore(task.score)}</TableCell>
+                        <TableCell>{titleCase(task.failure_analysis.primary_failure)}</TableCell>
+                        <TableCell>
+                          <Link className="text-primary hover:underline" href={`/replay/${task.execution_id}`}>
+                            Open replay
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
           </div>
         </CardContent>
       </Card>

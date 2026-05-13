@@ -12,11 +12,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useApiQuery } from "@/hooks/use-api-query";
+import { useBenchmarkRefresh } from "@/hooks/use-benchmark-refresh";
 import { formatDate, formatMs, formatPercent, formatScore } from "@/lib/format";
 import { dashboardApi } from "@/services/dashboard";
 
 export function ResultsOverview() {
   const benchmarks = useApiQuery("results-benchmarks", dashboardApi.getBenchmarkResults);
+  useBenchmarkRefresh(() => {
+    void benchmarks.refetch();
+  });
 
   if (benchmarks.isLoading) {
     return <PageSkeleton />;

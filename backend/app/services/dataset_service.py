@@ -53,6 +53,9 @@ class DatasetService:
         dataset = await self._load_dataset_by_id(dataset_id)
         return dataset.tasks
 
+    async def get_dataset(self, dataset_id: str) -> BenchmarkDataset:
+        return await self._load_dataset_by_id(dataset_id)
+
     async def get_task(self, dataset_id: str, task_id: str) -> BenchmarkTask:
         dataset = await self._load_dataset_by_id(dataset_id)
 

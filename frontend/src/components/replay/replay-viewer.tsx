@@ -8,17 +8,27 @@ import { ExecutionTimeline } from "@/components/replay/execution-timeline";
 import { MetadataSidebar } from "@/components/replay/metadata-sidebar";
 import { TraceFilters, type FilterState } from "@/components/replay/trace-filters";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { useApiQuery } from "@/hooks/use-api-query";
+import { useBenchmarkRefresh } from "@/hooks/use-benchmark-refresh";
 import { dashboardApi } from "@/services/dashboard";
 
 export function ReplayViewer({ executionId }: { executionId: string }) {
   const execution = useApiQuery(`execution-${executionId}`, () =>
     dashboardApi.getExecutionResult(executionId),
+    {
+      pollIntervalMs: 3000,
+    },
   );
   const evaluation = useApiQuery(`evaluation-${executionId}`, () =>
     dashboardApi.getTaskEvaluation(executionId).catch(() => null),
+    {
+      pollIntervalMs: 3000,
+    },
   );
+  useBenchmarkRefresh(() => {
+    void execution.refetch();
+    void evaluation.refetch();
+  });
 
   const [filters, setFilters] = useState<FilterState>({
     tools: [],

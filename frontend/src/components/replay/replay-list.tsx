@@ -13,7 +13,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useApiQuery } from "@/hooks/use-api-query";
-import { formatDate, formatMs, formatPercent, titleCase } from "@/lib/format";
+import { useBenchmarkRefresh } from "@/hooks/use-benchmark-refresh";
+import { formatPercent, titleCase } from "@/lib/format";
 import { dashboardApi } from "@/services/dashboard";
 import type { BenchmarkEvaluationResult } from "@/types/api";
 
@@ -71,6 +72,9 @@ function BenchmarkExecutionCard({
 
 export function ReplayList() {
   const results = useApiQuery("benchmark-results", () => dashboardApi.getBenchmarkResults());
+  useBenchmarkRefresh(() => {
+    void results.refetch();
+  });
 
   const [searchId, setSearchId] = useState("");
 

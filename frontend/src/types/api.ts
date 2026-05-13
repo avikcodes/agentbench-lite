@@ -47,6 +47,11 @@ export type BenchmarkTaskExecutionRequest = {
   model: AgentModelConfig;
 };
 
+export type BenchmarkRunRequest = {
+  dataset_id: string;
+  model: AgentModelConfig;
+};
+
 export type ExecutionTraceStep = {
   step_number: number;
   reasoning_step: string;
@@ -144,6 +149,8 @@ export type BenchmarkSummary = {
 export type BenchmarkEvaluationResult = {
   benchmark_id: string;
   model_name: string;
+  dataset_id?: string | null;
+  execution_ids: string[];
   task_results: TaskEvaluationResult[];
   metric_breakdown: MetricBreakdown;
   overall_score: number;
@@ -167,7 +174,14 @@ export type AppApiError = {
   detail?: string;
 };
 
-export type RunTaskStatus = "queued" | "running" | "success" | "error";
+export type BenchmarkRunStatus =
+  | "queued"
+  | "running"
+  | "evaluating"
+  | "completed"
+  | "failed";
+
+export type RunTaskStatus = BenchmarkRunStatus;
 
 export type RunTaskItem = {
   taskId: string;
@@ -236,4 +250,49 @@ export type EvaluationComparisonResult = {
 
 export type DatasetWithTasks = DatasetSummary & {
   tasks: BenchmarkTask[];
+};
+
+export type BenchmarkRunTaskState = {
+  task_id: string;
+  category: string;
+  difficulty: DifficultyLevel;
+  status: BenchmarkRunStatus;
+  execution_id: string | null;
+  replay_url: string | null;
+  latency: number | null;
+  passed: boolean | null;
+  score: number | null;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  evaluated_at: string | null;
+};
+
+export type BenchmarkRunSummary = {
+  total_tasks: number;
+  queued_tasks: number;
+  running_tasks: number;
+  evaluating_tasks: number;
+  completed_tasks: number;
+  failed_tasks: number;
+  completion_rate: number;
+};
+
+export type BenchmarkRunState = {
+  run_id: string;
+  dataset_id: string;
+  dataset_name: string;
+  model_name: string;
+  model_config: AgentModelConfig;
+  status: BenchmarkRunStatus;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  current_task_id: string | null;
+  benchmark_id: string | null;
+  execution_ids: string[];
+  failure_message: string | null;
+  summary: BenchmarkRunSummary;
+  task_states: BenchmarkRunTaskState[];
+  benchmark_result: BenchmarkEvaluationResult | null;
 };

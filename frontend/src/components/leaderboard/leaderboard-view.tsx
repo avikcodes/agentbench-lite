@@ -8,6 +8,7 @@ import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useApiQuery } from "@/hooks/use-api-query";
+import { useBenchmarkRefresh } from "@/hooks/use-benchmark-refresh";
 import { formatMs, formatPercent, formatScore } from "@/lib/format";
 import { dashboardApi } from "@/services/dashboard";
 
@@ -21,6 +22,9 @@ type AggregatedRow = {
 
 export function LeaderboardView() {
   const benchmarks = useApiQuery("leaderboard-benchmarks", dashboardApi.getBenchmarkResults);
+  useBenchmarkRefresh(() => {
+    void benchmarks.refetch();
+  });
 
   if (benchmarks.isLoading) {
     return <PageSkeleton />;

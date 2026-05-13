@@ -19,10 +19,14 @@ import { PageHeader } from "@/components/shared/page-header";
 import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useApiQuery } from "@/hooks/use-api-query";
+import { useBenchmarkRefresh } from "@/hooks/use-benchmark-refresh";
 import { dashboardApi } from "@/services/dashboard";
 
 export function AnalyticsDashboard() {
   const summary = useApiQuery("analytics-summary", () => dashboardApi.getAnalyticsSummary());
+  useBenchmarkRefresh(() => {
+    void summary.refetch();
+  });
 
   if (summary.isLoading) {
     return <PageSkeleton />;

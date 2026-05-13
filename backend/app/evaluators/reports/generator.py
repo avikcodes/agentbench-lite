@@ -65,6 +65,7 @@ async def generate_benchmark_report(
     model_name: str,
     executions: list[AgentExecutionResult],
     tasks: list[BenchmarkTask],
+    dataset_id: str | None = None,
     weights: dict[str, float] | None = None,
 ) -> BenchmarkEvaluationResult:
     task_results: list[TaskEvaluationResult] = []
@@ -107,6 +108,8 @@ async def generate_benchmark_report(
     return BenchmarkEvaluationResult(
         benchmark_id=benchmark_id,
         model_name=model_name,
+        dataset_id=dataset_id,
+        execution_ids=[execution.execution_id for execution in executions],
         task_results=task_results,
         metric_breakdown=metric_breakdown,
         overall_score=overall_score,

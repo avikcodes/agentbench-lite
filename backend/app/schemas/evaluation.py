@@ -104,6 +104,8 @@ class BenchmarkSummary(BaseModel):
 class BenchmarkEvaluationResult(BaseModel):
     benchmark_id: str
     model_name: str
+    dataset_id: str | None = None
+    execution_ids: list[str] = Field(default_factory=list)
     task_results: list[TaskEvaluationResult] = Field(default_factory=list)
     metric_breakdown: MetricBreakdown
     overall_score: float = Field(..., ge=0, le=1)
